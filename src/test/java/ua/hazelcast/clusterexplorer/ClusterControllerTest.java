@@ -17,7 +17,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -58,9 +57,7 @@ public class ClusterControllerTest extends AbstractClusterTest {
 
         doThrow(new ApiException("Request error"))
                 .when(kubeAppsApi).listNamespacedDeployment(eq(NS_DEFAULT), any(), any(), any(),
-                        any(), any(), any(), any(), any(), any());
-//        when(kubeAppsApi.listNamespacedDeployment(eq(NS_DEFAULT), any(), any(), any(),
-//                any(), any(), any(), any(), any(), any())).thenThrow(new ApiException("Request error"));
+                any(), any(), any(), any(), any(), any());
 
         this.mockMvc
                 .perform(get(URL_DEPLOYMENTS).param(NAMESPACE_FILTER_PARAM, NS_DEFAULT))

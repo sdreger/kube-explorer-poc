@@ -2,9 +2,11 @@ package ua.hazelcast.clusterexplorer;
 
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 
 class ClusterServiceTest extends AbstractClusterTest {
 
@@ -14,6 +16,9 @@ class ClusterServiceTest extends AbstractClusterTest {
         assertThat(deploymentsNames)
                 .isNotEmpty()
                 .contains(deploymentName);
+
+        // Await until pods are scheduled
+        await().atLeast(Duration.ofSeconds(2));
 
         final List<String> podNames = clusterService.getNamespacePodNames(NS_DEFAULT);
         assertThat(podNames)
@@ -29,6 +34,9 @@ class ClusterServiceTest extends AbstractClusterTest {
                 .isNotEmpty()
                 .hasSizeGreaterThan(1)
                 .contains(deploymentName);
+
+        // Await until pods are scheduled
+        await().atLeast(Duration.ofSeconds(2));
 
         final List<String> podNames = clusterService.getAllNamespacesPodNames();
         assertThat(podNames)

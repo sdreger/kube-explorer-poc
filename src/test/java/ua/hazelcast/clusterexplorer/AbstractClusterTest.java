@@ -21,7 +21,7 @@ public abstract class AbstractClusterTest {
 
     protected static final String DEPLOYMENT_NAME_PREFIX = "test-nginx-deployment-";
 
-    protected static final Integer REPLICAS = 3;
+    protected static final Integer REPLICAS = 2;
 
     protected static final Map<String, String> DEPLOYMENT_LABELS = Map.of("app", "nginx");
 
