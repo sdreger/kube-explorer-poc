@@ -1,15 +1,15 @@
 package ua.hazelcast.clusterexplorer.service;
 
-import io.kubernetes.client.openapi.ApiException;
-import io.kubernetes.client.openapi.apis.AppsV1Api;
-import io.kubernetes.client.openapi.apis.CoreV1Api;
-import io.kubernetes.client.openapi.models.V1Deployment;
-import io.kubernetes.client.openapi.models.V1ObjectMeta;
-import io.kubernetes.client.openapi.models.V1Pod;
+import io.fabric8.kubernetes.api.model.ObjectMeta;
+import io.fabric8.kubernetes.api.model.Pod;
+import io.fabric8.kubernetes.api.model.PodList;
+import io.fabric8.kubernetes.api.model.apps.Deployment;
+import io.fabric8.kubernetes.api.model.apps.DeploymentList;
+import io.fabric8.kubernetes.client.KubernetesClient;
+import io.fabric8.kubernetes.client.KubernetesClientException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.util.CollectionUtils;
 import ua.hazelcast.clusterexplorer.exception.ApplicationException;
 
 import java.util.Collections;
@@ -21,33 +21,34 @@ import java.util.stream.Collectors;
 @Service
 public class ClusterServiceImpl implements ClusterService {
 
-    private final AppsV1Api kubeAppsApi;
-
-    private final CoreV1Api coreApi;
+    private final KubernetesClient kubernetesClient;
 
     @Autowired
-    public ClusterServiceImpl(final AppsV1Api kubeAppsApi, final CoreV1Api coreApi) {
-        this.kubeAppsApi = kubeAppsApi;
-        this.coreApi = coreApi;
+    public ClusterServiceImpl(KubernetesClient kubernetesClient) {
+        this.kubernetesClient = kubernetesClient;
     }
 
     @Override
     public List<String> getNamespaceDeploymentsNames(final String namespace) {
+
         return processApiCallWithTryCatchBlock(() -> {
-            final List<V1Deployment> deployments = kubeAppsApi
-                    .listNamespacedDeployment(namespace, null, null, null, null, null, null, null, null, null)
-                    .getItems();
-            return getDeploymentsNames(deployments);
+            final DeploymentList deploymentList = kubernetesClient.apps()
+                    .deployments()
+                    .inNamespace(namespace)
+                    .list();
+            return getDeploymentsNames(deploymentList);
         });
     }
 
     @Override
     public List<String> getAllNamespacesDeploymentsNames() {
+
         return processApiCallWithTryCatchBlock(() -> {
-            final List<V1Deployment> deployments = kubeAppsApi
-                    .listDeploymentForAllNamespaces(null, null, null, null, null, null, null, null, null)
-                    .getItems();
-            return getDeploymentsNames(deployments);
+            final DeploymentList deploymentList = kubernetesClient.apps()
+                    .deployments()
+                    .inAnyNamespace()
+                    .list();
+            return getDeploymentsNames(deploymentList);
         });
     }
 
@@ -55,10 +56,9 @@ public class ClusterServiceImpl implements ClusterService {
     public List<String> getNamespacePodNames(final String namespace) {
 
         return processApiCallWithTryCatchBlock(() -> {
-
-            final List<V1Pod> podList = coreApi
-                    .listNamespacedPod(namespace, null, null, null, null, null, null, null, null, null)
-                    .getItems();
+            final PodList podList = kubernetesClient.pods()
+                    .inNamespace(namespace)
+                    .list();
             return getPodNames(podList);
         });
     }
@@ -67,34 +67,36 @@ public class ClusterServiceImpl implements ClusterService {
     public List<String> getAllNamespacesPodNames() {
 
         return processApiCallWithTryCatchBlock(() -> {
-            final List<V1Pod> podList = coreApi
-                    .listPodForAllNamespaces(null, null, null, null, null, null, null, null, null)
-                    .getItems();
+            final PodList podList = kubernetesClient.pods()
+                    .inAnyNamespace()
+                    .list();
             return getPodNames(podList);
         });
     }
 
-    private List<String> getDeploymentsNames(final List<V1Deployment> deployments) {
-        if (CollectionUtils.isEmpty(deployments)) {
+    private List<String> getDeploymentsNames(final DeploymentList deployments) {
+        if (deployments == null) {
             return Collections.emptyList();
         }
 
-        return deployments.stream()
-                .map(V1Deployment::getMetadata)
+        return deployments.getItems()
+                .stream()
+                .map(Deployment::getMetadata)
                 .filter(Objects::nonNull)
-                .map(V1ObjectMeta::getName)
+                .map(ObjectMeta::getName)
                 .collect(Collectors.toList());
     }
 
-    private List<String> getPodNames(final List<V1Pod> podList) {
-        if (CollectionUtils.isEmpty(podList)) {
+    private List<String> getPodNames(final PodList podList) {
+        if (podList == null) {
             return Collections.emptyList();
         }
 
-        return podList.stream()
-                .map(V1Pod::getMetadata)
+        return podList.getItems()
+                .stream()
+                .map(Pod::getMetadata)
                 .filter(Objects::nonNull)
-                .map(V1ObjectMeta::getName)
+                .map(ObjectMeta::getName)
                 .collect(Collectors.toList());
     }
 
@@ -108,7 +110,7 @@ public class ClusterServiceImpl implements ClusterService {
     static <T> T processApiCallWithTryCatchBlock(KubeApiCall<T> consumer) {
         try {
             return consumer.process();
-        } catch (ApiException e) {
+        } catch (KubernetesClientException e) {
             log.error("Api call error: {}", e.getMessage());
             throw new ApplicationException(GENERIC_ERROR_MESSAGE);
         }
@@ -116,6 +118,6 @@ public class ClusterServiceImpl implements ClusterService {
 
     @FunctionalInterface
     public interface KubeApiCall<T> {
-        T process() throws ApiException;
+        T process() throws KubernetesClientException;
     }
 }

@@ -2,7 +2,7 @@ package ua.hazelcast.clusterexplorer;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.kubernetes.client.openapi.ApiException;
+import io.fabric8.kubernetes.client.KubernetesClientException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -14,7 +14,6 @@ import ua.hazelcast.clusterexplorer.service.ClusterService;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -55,9 +54,8 @@ public class ClusterControllerTest extends AbstractClusterTest {
     @Test
     void shouldReturnAnError() throws Exception {
 
-        doThrow(new ApiException("Request error"))
-                .when(kubeAppsApi).listNamespacedDeployment(eq(NS_DEFAULT), any(), any(), any(),
-                any(), any(), any(), any(), any(), any());
+        doThrow(new KubernetesClientException("Request error"))
+                .when(kubernetesClient).apps().deployments().inNamespace(eq(NS_DEFAULT)).list();
 
         this.mockMvc
                 .perform(get(URL_DEPLOYMENTS).param(NAMESPACE_FILTER_PARAM, NS_DEFAULT))
