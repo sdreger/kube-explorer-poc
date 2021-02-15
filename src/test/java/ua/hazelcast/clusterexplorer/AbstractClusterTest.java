@@ -1,5 +1,7 @@
 package ua.hazelcast.clusterexplorer;
 
+import io.fabric8.kubernetes.api.model.Pod;
+import io.fabric8.kubernetes.api.model.PodBuilder;
 import io.fabric8.kubernetes.api.model.apps.Deployment;
 import io.fabric8.kubernetes.api.model.apps.DeploymentBuilder;
 import io.fabric8.kubernetes.client.KubernetesClient;
@@ -7,19 +9,21 @@ import io.fabric8.kubernetes.client.KubernetesClientException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.SpyBean;
-import ua.hazelcast.clusterexplorer.service.ClusterService;
+import org.springframework.test.context.ActiveProfiles;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-@SpringBootTest
+@ActiveProfiles("test")
 public abstract class AbstractClusterTest {
 
     protected static final String NS_DEFAULT = "default";
 
-    protected static final String DEPLOYMENT_NAME_PREFIX = "test-nginx-deployment-";
+    protected static final String DEPLOYMENT_NAME = "test-nginx-deployment";
+
+    protected static final String POD_NAME_PREFIX = DEPLOYMENT_NAME + "-";
 
     protected static final Integer REPLICAS = 2;
 
@@ -33,21 +37,17 @@ public abstract class AbstractClusterTest {
 
     protected Deployment testDeployment;
 
-    protected String deploymentName;
-
-    @SpyBean
-    protected KubernetesClient kubernetesClient;
+    protected List<Pod> testPods = new ArrayList<>(REPLICAS);
 
     @Autowired
-    protected ClusterService clusterService;
+    protected KubernetesClient client;
 
     @BeforeEach
     void setUp() throws KubernetesClientException {
 
-        deploymentName = DEPLOYMENT_NAME_PREFIX + UUID.randomUUID();
         testDeployment = new DeploymentBuilder()
                 .withNewMetadata()
-                    .withName(deploymentName)
+                    .withName(DEPLOYMENT_NAME)
                     .addToLabels(DEPLOYMENT_LABELS)
                     .endMetadata()
                 .withNewSpec()
@@ -73,11 +73,35 @@ public abstract class AbstractClusterTest {
                 .endSpec()
             .build();
 
-        kubernetesClient.apps().deployments().inNamespace(NS_DEFAULT).createOrReplace(testDeployment);
+        client.apps().deployments().inNamespace(NS_DEFAULT).createOrReplace(testDeployment);
+
+        // We have to create pods manually, because in the API mode deployment creation doesn't trigger pods creation
+        for (int i = 0; i < REPLICAS; i++) {
+            Pod testPod = new PodBuilder()
+                    .withNewMetadata()
+                        .withName(POD_NAME_PREFIX + UUID.randomUUID())
+                        .addToLabels(DEPLOYMENT_LABELS)
+                    .endMetadata()
+                    .withNewSpec()
+                        .addNewContainer()
+                            .withName(CONTAINER_NAME)
+                            .withImage(CONTAINER_IMAGE)
+                            .withPorts()
+                                .addNewPort()
+                                    .withContainerPort(CONTAINER_PORT)
+                                .endPort()
+                        .endContainer()
+                    .endSpec()
+                    .build();
+
+            client.pods().inNamespace(NS_DEFAULT).createOrReplace(testPod);
+            testPods.add(testPod);
+        }
     }
 
     @AfterEach
     void shutDown() throws KubernetesClientException {
-        kubernetesClient.apps().deployments().inNamespace(NS_DEFAULT).delete(testDeployment);
+        testPods.forEach(pod -> client.pods().inNamespace(NS_DEFAULT).delete(pod));
+        client.apps().deployments().inNamespace(NS_DEFAULT).delete(testDeployment);
     }
 }
